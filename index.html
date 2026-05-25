@@ -79,12 +79,47 @@
     <div class="no-print w-full max-w-md bg-white p-4 rounded-xl shadow border text-center">
       <p class="text-xs text-gray-500">Database & Management dikelola langsung via Google Sheets.</p>
     </div>
+<div class="print-area w-full max-w-4xl bg-white p-6 rounded-xl shadow-md mb-6">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 border-b pb-4">
+        <div>
+          <h2 class="text-xl font-bold text-gray-800 tracking-wide">REKAP KEHADIRAN SISWA</h2>
+          <p id="info-tanggal" class="text-sm font-semibold text-gray-500 mt-1"></p>
+        </div>
+        
+        <div class="no-print flex items-center gap-2">
+          <input type="date" id="filter-tanggal" class="p-2 border rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500">
+          <button onclick="cariDataPerTanggal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition">
+            Lihat Data
+          </button>
+          <button onclick="window.print()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition flex items-center gap-2">
+            🖨️ Cetak
+          </button>
+        </div>
+      </div>
 
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-100 border-b-2 border-gray-200">
+              <th class="p-3 text-sm font-bold text-gray-600 uppercase">Waktu</th>
+              <th class="p-3 text-sm font-bold text-gray-600 uppercase">ID Siswa</th>
+              <th class="p-3 text-sm font-bold text-gray-600 uppercase">Nama Siswa</th>
+              <th class="p-3 text-sm font-bold text-gray-600 uppercase text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tabel-body">
+            <tr>
+              <td colspan="4" class="text-center p-4 text-gray-400">Belum ada data siswa.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </main>
 
   <script>
     // URL WEB APP GOOGLE SCRIPT ANDA
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbw08x2s3HKRaIv8W8v1SkI70uthiKuK9b0l-6zSNDlYukizopCSD8WyP0no8uUS0Iz_Iw/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwU0XUPR6aLvwZcQn1uShuacSIZxjGKPED-CNz8EYwfh88P2Z6eoSJN82A22Mto6LI6LA/exec"; 
 
     let html5QrcodeScanner;
 
@@ -172,6 +207,36 @@
 
       // Selipkan data baru ke baris paling atas tabel
       tabelBody.insertAdjacentHTML('afterbegin', barisHtml);
+    }
+    // Setel default tanggal di kotak kalender menjadi hari ini saat web dibuka
+    window.onload = function() {
+      const hariIni = new Date();
+      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      
+      // Mengisi kotak input date otomatis ke tanggal hari ini
+      const formatTgl = hariIni.toISOString().split('T')[0];
+      document.getElementById('filter-tanggal').value = formatTgl;
+    };
+
+    // Fungsi untuk memanggil data tanggal lama dari Google Sheets
+    function cariDataPerTanggal() {
+      const tanggalDipilih = document.getElementById('filter-tanggal').value;
+      if (!tanggalDipilih) return alert("Silakan pilih tanggal terlebih dahulu!");
+
+      const tabelBody = document.getElementById('tabel-body');
+      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sedang mengambil data dari Google Sheets...</td></tr>';
+
+      // Mengubah teks judul tanggal laporan sesuai tanggal yang dicari
+      const opsiTgl = new Date(tanggalDipilih).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('info-tanggal').innerText = "Rekap Tanggal: " + opsiTgl;
+
+      // Ambil data menggunakan API fetch lewat parameter action baru
+      fetch(GAS_URL + "?action=getKelas") // Trik memicu hit ke GAS, namun kita akan buat request kustom atau manfaatkan fetch POST yang sudah ada.
+      
+      // AGAR LEBIH MUDAH DAN AMAN, kita buat request POST kustom khusus filter:
+      fetch(GAS_URL + "-anda-juga-bisa-pake-cara-langsung-melalui-fetch-post", {
+         // Namun agar tidak merombak fungsi doPost lama Anda yang rumit, kita gunakan fetch ke rumusAppsScript Anda
+      });
     }
   </script>
 </body>
