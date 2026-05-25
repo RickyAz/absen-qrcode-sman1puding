@@ -39,11 +39,23 @@
 
     let html5QrcodeScanner;
 
-    function aktifkanKamera() {
-      document.getElementById('reader').innerHTML = "";
-      html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 }, false);
-      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-    }
+function aktifkanKamera() {
+  document.getElementById('reader').innerHTML = "";
+  
+  // Membuat konfigurasi scanner
+  html5QrcodeScanner = new Html5QrcodeScanner(
+    "reader", 
+    { 
+      fps: 10, 
+      qrbox: 250,
+      // Memaksa browser mendahulukan kamera belakang (environment)
+      facingMode: "environment" 
+    }, 
+    false
+  );
+  
+  html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+}
 
     function onScanSuccess(decodedText) {
       // Matikan scanner sementara agar tidak membaca ganda
