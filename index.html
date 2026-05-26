@@ -22,6 +22,9 @@
         box-shadow: none !important; 
         padding: 0 !important; 
       }
+      .print-only {
+        display: inline !important;
+      }
     }
   </style>
 </head>
@@ -69,90 +72,45 @@
           </thead>
           <tbody id="tabel-body">
             <tr>
-              <td colspan="4" class="text-center p-4 text-gray-400">Belum ada siswa yang di-scan hari ini.</td>
+              <td colspan="4" class="text-center p-4 text-gray-400">Menghubungkan ke database siswa...</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <div class="no-print w-full max-w-md bg-white p-4 rounded-xl shadow border text-center">
+    <div class="no-print w-full max-w-4xl bg-white p-4 rounded-xl shadow border text-center">
       <p class="text-xs text-gray-500">Database & Management dikelola langsung via Google Sheets.</p>
     </div>
-<div class="print-area w-full max-w-4xl bg-white p-6 rounded-xl shadow-md mb-6">
-      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 border-b pb-4">
-        <div>
-          <h2 class="text-xl font-bold text-gray-800 tracking-wide">REKAP KEHADIRAN SISWA</h2>
-          <p id="info-tanggal" class="text-sm font-semibold text-gray-500 mt-1"></p>
-        </div>
-        
-        <div class="no-print flex items-center gap-2">
-          <input type="date" id="filter-tanggal" class="p-2 border rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500">
-          <button onclick="cariDataPerTanggal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition">
-            Lihat Data
-          </button>
-          <button onclick="window.print()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition flex items-center gap-2">
-            🖨️ Cetak
-          </button>
-        </div>
-      </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-gray-100 border-b-2 border-gray-200">
-              <th class="p-3 text-sm font-bold text-gray-600 uppercase">Waktu</th>
-              <th class="p-3 text-sm font-bold text-gray-600 uppercase">ID Siswa</th>
-              <th class="p-3 text-sm font-bold text-gray-600 uppercase">Nama Siswa</th>
-              <th class="p-3 text-sm font-bold text-gray-600 uppercase text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody id="tabel-body">
-            <tr>
-              <td colspan="4" class="text-center p-4 text-gray-400">Belum ada data siswa.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </main>
 
   <script>
     // URL WEB APP GOOGLE SCRIPT ANDA
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwU0XUPR6aLvwZcQn1uShuacSIZxjGKPED-CNz8EYwfh88P2Z6eoSJN82A22Mto6LI6LA/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw08x2s3HKRaIv8W8v1SkI70uthiKuK9b0l-6zSNDlYukizopCSD8WyP0no8uUS0Iz_Iw/exec"; 
 
     let html5QrcodeScanner;
 
-    // Menampilkan tanggal otomatis saat halaman dimuat
+    // Dipanggil saat pertama kali web dibuka
     window.onload = function() {
       document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      muatSemuaDataHariIni();
     };
 
     function aktifkanKamera() {
       document.getElementById('reader').innerHTML = "";
-      
       html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader", 
-        { 
-          fps: 10, 
-          qrbox: 250,
-          facingMode: "environment" 
-        }, 
-        false
+        "reader", { fps: 10, qrbox: 250, facingMode: "environment" }, false
       );
-      
       html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     }
 
     function onScanSuccess(decodedText) {
-      // Matikan scanner sementara agar tidak membaca ganda
       html5QrcodeScanner.clear();
-      
       const statusBox = document.getElementById("status-box");
       statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-yellow-100 text-yellow-800 block";
       statusBox.innerText = "Mengecek ID Kartu...";
 
-      // Kirim data ke Google Sheets
       fetch(GAS_URL + "?action=scanAbsensi", {
         method: "POST",
         body: JSON.stringify({ idSiswa: decodedText })
@@ -163,14 +121,12 @@
         if(response.success) {
           statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-green-100 text-green-800 block";
           statusBox.innerText = response.message;
-          
-          // Memasukkan data ke tabel rekap web secara live
-          tambahKeTabel(decodedText, response.message);
+          // Segarkan tabel agar status berubah jadi "Hadir"
+          muatSemuaDataHariIni();
         } else {
           statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-800 block";
           statusBox.innerText = response.message;
         }
-        // Hidupkan kamera kembali setelah 3 detik untuk siswa selanjutnya
         setTimeout(aktifkanKamera, 3000);
       })
       .catch(err => {
@@ -181,79 +137,12 @@
     }
 
     function onScanFailure(error) {
-      // Diabaikan saja agar console tidak penuh
+      // Diabaikan
     }
 
-    // Fungsi untuk menyuntikkan baris siswa baru ke tabel website
-    function tambahKeTabel(idSiswa, pesanBerhasil) {
+    // MEMUAT SEMUA SISWA & DATA SCAN DARI SCRIPT GOOGLE
+    function muatSemuaDataHariIni() {
       const tabelBody = document.getElementById('tabel-body');
-      
-      // Bersihkan pesan "Belum ada siswa" jika ini scan pertama
-      if(tabelBody.innerHTML.includes("Belum ada siswa")) {
-        tabelBody.innerHTML = "";
-      }
-
-      // Mengambil nama siswa dari teks respon (Contoh: "Berhasil! Budi Santoso dicatat HADIR.")
-      let namaSiswa = pesanBerhasil.replace("Berhasil! ", "").replace(" dicatat HADIR.", "");
-      
-      const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-      const barisHtml = `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
-        <td class="p-3 text-gray-700 font-semibold">${waktuSekarang}</td>
-        <td class="p-3 text-gray-600 font-mono">${idSiswa}</td>
-        <td class="p-3 font-bold text-gray-800">${namaSiswa}</td>
-        <td class="p-3 text-center"><span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">Hadir</span></td>
-      </tr>`;
-
-      // Selipkan data baru ke baris paling atas tabel
-      tabelBody.insertAdjacentHTML('afterbegin', barisHtml);
-    }
-    // Setel default tanggal di kotak kalender menjadi hari ini saat web dibuka
-    window.onload = function() {
-      const hariIni = new Date();
-      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      
-      // Mengisi kotak input date otomatis ke tanggal hari ini
-      const formatTgl = hariIni.toISOString().split('T')[0];
-      document.getElementById('filter-tanggal').value = formatTgl;
-    };
-
-    // Fungsi untuk memanggil data tanggal lama dari Google Sheets
-    function cariDataPerTanggal() {
-      const tanggalDipilih = document.getElementById('filter-tanggal').value;
-      if (!tanggalDipilih) return alert("Silakan pilih tanggal terlebih dahulu!");
-
-      const tabelBody = document.getElementById('tabel-body');
-      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sedang mengambil data dari Google Sheets...</td></tr>';
-
-      // Mengubah teks judul tanggal laporan sesuai tanggal yang dicari
-      const opsiTgl = new Date(tanggalDipilih).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      document.getElementById('info-tanggal').innerText = "Rekap Tanggal: " + opsiTgl;
-
-      // Ambil data menggunakan API fetch lewat parameter action baru
-      fetch(GAS_URL + "?action=getKelas") // Trik memicu hit ke GAS, namun kita akan buat request kustom atau manfaatkan fetch POST yang sudah ada.
-      
-      // AGAR LEBIH MUDAH DAN AMAN, kita buat request POST kustom khusus filter:
-      fetch(GAS_URL + "-anda-juga-bisa-pake-cara-langsung-melalui-fetch-post", {
-         // Namun agar tidak merombak fungsi doPost lama Anda yang rumit, kita gunakan fetch ke rumusAppsScript Anda
-      });
-    }
-    // 1. Modifikasi fungsi window.onload agar otomatis menarik data lama saat web dibuka
-    window.onload = function() {
-      const hariIni = new Date();
-      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      
-      const formatTgl = hariIni.toISOString().split('T')[0];
-      document.getElementById('filter-tanggal').value = formatTgl;
-
-      // PANGGIL FUNGSI INI AGAR DATA LAMA MUNCUL SEMUA
-      muatSemuaDataHariIni();
-    };
-
-    // 2. Buat fungsi baru untuk menarik data secara massal dari Google Sheets
-function muatSemuaDataHariIni() {
-      const tabelBody = document.getElementById('tabel-body');
-      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Menyinkronkan daftar seluruh siswa...</td></tr>';
 
       fetch(GAS_URL + "?action=getAbsensiHariIni", {
         method: "POST",
@@ -270,7 +159,6 @@ function muatSemuaDataHariIni() {
         data.forEach(item => {
           let badgeStatus = "";
           
-          // Mengatur tampilan kolom status berdasarkan isi data
           if (item.status === "Hadir") {
             badgeStatus = `<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">Hadir</span>`;
           } else if (item.status === "Sakit") {
@@ -280,9 +168,9 @@ function muatSemuaDataHariIni() {
           } else if (item.status === "Alpa") {
             badgeStatus = `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-extrabold">Alpa</span>`;
           } else {
-            // Jika statusnya masih "Belum Absen" -> Tampilkan Menu Pilihan Dropdown (Sembunyi saat diprint)
+            // Tampilan jika siswa belum scan (Dropdown S/I/A)
             badgeStatus = `
-              <div class="no-print flex items-center justify-center gap-1">
+              <div class="no-print flex items-center justify-center">
                 <select onchange="gantiStatusManual('${item.id}', this.value)" class="text-xs bg-gray-50 border border-gray-300 rounded p-1 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
                   <option value="" disabled selected>Pilih...</option>
                   <option value="Sakit">Sakit</option>
@@ -290,7 +178,7 @@ function muatSemuaDataHariIni() {
                   <option value="Alpa">Alpa</option>
                 </select>
               </div>
-              <span class="print-only hidden text-xs text-red-400 font-bold">Belum Absen</span>
+              <span class="print-only hidden text-xs text-red-500 font-bold">Belum Absen</span>
             `;
           }
 
@@ -302,16 +190,19 @@ function muatSemuaDataHariIni() {
           </tr>`;
           tabelBody.insertAdjacentHTML('beforeend', barisHtml);
         });
+      })
+      .catch(err => {
+        tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Gagal menyinkronkan data. Rekoneksi server...</td></tr>';
       });
     }
 
-    // Fungsi Baru untuk Mengirim Perubahan Status Dropdown ke Google Sheets
+    // Mengirim perubahan status manual (Sakit/Izin/Alpa)
     function gantiStatusManual(idSiswa, statusPilihan) {
       if (!statusPilihan) return;
       
       const statusBox = document.getElementById("status-box");
-      statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-yellow-100 text-yellow-800 block";
-      statusBox.innerText = "Memperbarui status siswa...";
+      statusBox.className = "no-print mt-4 p-3 rounded-lg text-sm font-bold bg-yellow-100 text-yellow-800 block";
+      statusBox.innerText = "Memperbarui status di Google Sheets...";
 
       fetch(GAS_URL + "?action=ubahStatusManual", {
         method: "POST",
@@ -320,30 +211,13 @@ function muatSemuaDataHariIni() {
       .then(res => res.json())
       .then(response => {
         if (response.success) {
-          statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-green-100 text-green-800 block";
+          statusBox.className = "no-print mt-4 p-3 rounded-lg text-sm font-bold bg-green-100 text-green-800 block";
           statusBox.innerText = response.message;
-          // Refresh tabel agar dropdown berubah menjadi badge status berwarna
-          muatSemuaDataHariIni();
+          muatSemuaDataHariIni(); // Perbarui tabel otomatis
         } else {
-          statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-800 block";
+          statusBox.className = "no-print mt-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-800 block";
           statusBox.innerText = "Gagal mengubah status.";
         }
-      });
-    }
-        
-        // Masukkan semua data satu per satu ke dalam tabel
-        data.forEach(item => {
-          const barisHtml = `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
-            <td class="p-3 text-gray-700 font-semibold">${item.waktu}</td>
-            <td class="p-3 text-gray-600 font-mono">${item.id}</td>
-            <td class="p-3 font-bold text-gray-800">${item.nama}</td>
-            <td class="p-3 text-center"><span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">${item.status}</span></td>
-          </tr>`;
-          tabelBody.insertAdjacentHTML('beforeend', barisHtml);
-        });
-      })
-      .catch(err => {
-        tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Gagal memuat riwayat data.</td></tr>';
       });
     }
   </script>
