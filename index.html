@@ -251,9 +251,9 @@
     };
 
     // 2. Buat fungsi baru untuk menarik data secara massal dari Google Sheets
-    function muatSemuaDataHariIni() {
+function muatSemuaDataHariIni() {
       const tabelBody = document.getElementById('tabel-body');
-      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sinkronisasi riwayat absensi...</td></tr>';
+      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Menyinkronkan daftar seluruh siswa...</td></tr>';
 
       fetch(GAS_URL + "?action=getAbsensiHariIni", {
         method: "POST",
@@ -261,11 +261,75 @@
       })
       .then(res => res.json())
       .then(data => {
-        tabelBody.innerHTML = ""; // Bersihkan loading
+        tabelBody.innerHTML = "";
         if (!data || data.length === 0) {
-          tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Belum ada siswa yang di-scan hari ini.</td></tr>';
+          tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Tidak ada data siswa ditemukan di database.</td></tr>';
           return;
         }
+        
+        data.forEach(item => {
+          let badgeStatus = "";
+          
+          // Mengatur tampilan kolom status berdasarkan isi data
+          if (item.status === "Hadir") {
+            badgeStatus = `<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">Hadir</span>`;
+          } else if (item.status === "Sakit") {
+            badgeStatus = `<span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-extrabold">Sakit</span>`;
+          } else if (item.status === "Izin") {
+            badgeStatus = `<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-extrabold">Izin</span>`;
+          } else if (item.status === "Alpa") {
+            badgeStatus = `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-extrabold">Alpa</span>`;
+          } else {
+            // Jika statusnya masih "Belum Absen" -> Tampilkan Menu Pilihan Dropdown (Sembunyi saat diprint)
+            badgeStatus = `
+              <div class="no-print flex items-center justify-center gap-1">
+                <select onchange="gantiStatusManual('${item.id}', this.value)" class="text-xs bg-gray-50 border border-gray-300 rounded p-1 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
+                  <option value="" disabled selected>Pilih...</option>
+                  <option value="Sakit">Sakit</option>
+                  <option value="Izin">Izin</option>
+                  <option value="Alpa">Alpa</option>
+                </select>
+              </div>
+              <span class="print-only hidden text-xs text-red-400 font-bold">Belum Absen</span>
+            `;
+          }
+
+          const barisHtml = `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+            <td class="p-3 text-gray-700 font-semibold">${item.waktu}</td>
+            <td class="p-3 text-gray-600 font-mono">${item.id}</td>
+            <td class="p-3 font-bold text-gray-800">${item.nama}</td>
+            <td class="p-3 text-center">${badgeStatus}</td>
+          </tr>`;
+          tabelBody.insertAdjacentHTML('beforeend', barisHtml);
+        });
+      });
+    }
+
+    // Fungsi Baru untuk Mengirim Perubahan Status Dropdown ke Google Sheets
+    function gantiStatusManual(idSiswa, statusPilihan) {
+      if (!statusPilihan) return;
+      
+      const statusBox = document.getElementById("status-box");
+      statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-yellow-100 text-yellow-800 block";
+      statusBox.innerText = "Memperbarui status siswa...";
+
+      fetch(GAS_URL + "?action=ubahStatusManual", {
+        method: "POST",
+        body: JSON.stringify({ idSiswa: idSiswa, statusBaru: statusPilihan })
+      })
+      .then(res => res.json())
+      .then(response => {
+        if (response.success) {
+          statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-green-100 text-green-800 block";
+          statusBox.innerText = response.message;
+          // Refresh tabel agar dropdown berubah menjadi badge status berwarna
+          muatSemuaDataHariIni();
+        } else {
+          statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-800 block";
+          statusBox.innerText = "Gagal mengubah status.";
+        }
+      });
+    }
         
         // Masukkan semua data satu per satu ke dalam tabel
         data.forEach(item => {
