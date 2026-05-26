@@ -238,6 +238,50 @@
          // Namun agar tidak merombak fungsi doPost lama Anda yang rumit, kita gunakan fetch ke rumusAppsScript Anda
       });
     }
+    // 1. Modifikasi fungsi window.onload agar otomatis menarik data lama saat web dibuka
+    window.onload = function() {
+      const hariIni = new Date();
+      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      
+      const formatTgl = hariIni.toISOString().split('T')[0];
+      document.getElementById('filter-tanggal').value = formatTgl;
+
+      // PANGGIL FUNGSI INI AGAR DATA LAMA MUNCUL SEMUA
+      muatSemuaDataHariIni();
+    };
+
+    // 2. Buat fungsi baru untuk menarik data secara massal dari Google Sheets
+    function muatSemuaDataHariIni() {
+      const tabelBody = document.getElementById('tabel-body');
+      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sinkronisasi riwayat absensi...</td></tr>';
+
+      fetch(GAS_URL + "?action=getAbsensiHariIni", {
+        method: "POST",
+        body: JSON.stringify({})
+      })
+      .then(res => res.json())
+      .then(data => {
+        tabelBody.innerHTML = ""; // Bersihkan loading
+        if (!data || data.length === 0) {
+          tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Belum ada siswa yang di-scan hari ini.</td></tr>';
+          return;
+        }
+        
+        // Masukkan semua data satu per satu ke dalam tabel
+        data.forEach(item => {
+          const barisHtml = `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+            <td class="p-3 text-gray-700 font-semibold">${item.waktu}</td>
+            <td class="p-3 text-gray-600 font-mono">${item.id}</td>
+            <td class="p-3 font-bold text-gray-800">${item.nama}</td>
+            <td class="p-3 text-center"><span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">${item.status}</span></td>
+          </tr>`;
+          tabelBody.insertAdjacentHTML('beforeend', barisHtml);
+        });
+      })
+      .catch(err => {
+        tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Gagal memuat riwayat data.</td></tr>';
+      });
+    }
   </script>
 </body>
 </html>
