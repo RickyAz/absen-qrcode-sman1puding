@@ -33,7 +33,7 @@
     </div>
 
     <div class="print-area w-full max-w-4xl bg-white p-6 rounded-xl shadow-md mb-6">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b pb-4">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 border-b pb-4">
         <div>
           <h2 class="text-xl font-bold text-gray-800 tracking-wide">REKAP KEHADIRAN SISWA</h2>
           <p id="info-tanggal" class="text-sm font-semibold text-gray-500 mt-1"></p>
@@ -51,6 +51,18 @@
             🖨️ Cetak
           </button>
         </div>
+      </div>
+
+      <div id="stat-box" class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4 text-center text-xs font-bold text-gray-700">
+        <div class="bg-gray-100 p-2 rounded-lg border">Siswa: <span id="stat-total" class="text-gray-900 text-sm">0</span></div>
+        <div class="bg-green-50 p-2 rounded-lg border border-green-200 text-green-700">Hadir: <span id="stat-hadir" class="text-green-900 text-sm">0</span></div>
+        <div class="bg-yellow-50 p-2 rounded-lg border border-yellow-200 text-yellow-700">Sakit: <span id="stat-sakit" class="text-yellow-900 text-sm">0</span></div>
+        <div class="bg-blue-50 p-2 rounded-lg border border-blue-200 text-blue-700">Izin: <span id="stat-izin" class="text-blue-900 text-sm">0</span></div>
+        <div class="bg-red-50 p-2 rounded-lg border border-red-200 text-red-700">Alpa: <span id="stat-alpa" class="text-red-900 text-sm">0</span></div>
+      </div>
+
+      <div class="no-print mb-4">
+        <input type="text" id="cari-nama" onkeyup="filterNamaSiswa()" placeholder="🔍 Cari nama siswa di tabel..." class="w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
       </div>
 
       <div class="overflow-x-auto">
@@ -81,12 +93,19 @@
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwU0XUPR6aLvwZcQn1uShuacSIZxjGKPED-CNz8EYwfh88P2Z6eoSJN82A22Mto6LI6LA/exec"; 
     let html5QrcodeScanner;
+    let autoRefreshInterval;
+    let modeHariIni = true;
 
     window.onload = function() {
       const hariIni = new Date();
       document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       document.getElementById('filter-tanggal').value = hariIni.toISOString().split('T')[0];
       muatSemuaDataHariIni();
+      
+      // Jalankan Auto-Refresh setiap 15 detik khusus untuk mode Hari Ini
+      autoRefreshInterval = setInterval(function() {
+        if(modeHariIni) muatSemuaDataHariIni(true); 
+      }, 15000);
     };
 
     function aktifkanKamera() {
@@ -128,14 +147,42 @@
 
     function onScanFailure(error) {}
 
-    // 1. CARI RIWAYAT TANGGAL LALU
+    // RUMUS MENGUPDATE PANEL COUNTER STATISTIK
+    function updateStatistik(data) {
+      let total = data.length;
+      let hadir = data.filter(i => i.status === "Hadir").length;
+      let sakit = data.filter(i => i.status === "Sakit").length;
+      let izin = data.filter(i => i.status === "Izin").length;
+      let alpa = data.filter(i => i.status === "Alpa").length;
+
+      document.getElementById('stat-total').innerText = total;
+      document.getElementById('stat-hadir').innerText = hadir;
+      document.getElementById('stat-sakit').innerText = sakit;
+      document.getElementById('stat-izin').innerText = izin;
+      document.getElementById('stat-alpa').innerText = alpa;
+    }
+
+    // FITUR FILTER PENCARIAN NAMA REALTIME
+    function filterNamaSiswa() {
+      let input = document.getElementById("cari-nama").value.toLowerCase();
+      let rows = document.querySelectorAll("#tabel-body tr");
+      
+      rows.forEach(row => {
+        let namaSiswa = row.querySelector("td:nth-child(3)");
+        if (namaSiswa) {
+          let textValue = namaSiswa.textContent || namaSiswa.innerText;
+          row.style.display = textValue.toLowerCase().indexOf(input) > -1 ? "" : "none";
+        }
+      });
+    }
+
     function cariRiwayatTanggal() {
       const tanggalDipilih = document.getElementById('filter-tanggal').value;
       if (!tanggalDipilih) return alert("Silakan pilih tanggal terlebih dahulu!");
 
-      // Jika mencari tanggal kemarin, sembunyikan kotak kamera scanner agar aman
       const hariIniString = new Date().toISOString().split('T')[0];
       if (tanggalDipilih !== hariIniString) {
+        modeHariIni = false;
         document.getElementById('scanner-section').classList.add('hidden');
         document.getElementById('btn-hari-ini').classList.remove('hidden');
         if (html5QrcodeScanner) { html5QrcodeScanner.clear(); }
@@ -157,6 +204,7 @@
       .then(res => res.json())
       .then(data => {
         tabelBody.innerHTML = "";
+        updateStatistik(data);
         if (!data || data.length === 0) {
           tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Tidak ada riwayat data absensi pada tanggal ini.</td></tr>';
           return;
@@ -177,11 +225,12 @@
           </tr>`;
           tabelBody.insertAdjacentHTML('beforeend', barisHtml);
         });
+        filterNamaSiswa(); // Tetap terapkan pencarian jika input terisi
       });
     }
 
-    // 2. TOMBOL KEMBALI KE ABSENSI BERJALAN
     function kembaliKeHariIni() {
+      modeHariIni = true;
       const hariIni = new Date();
       document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       document.getElementById('filter-tanggal').value = hariIni.toISOString().split('T')[0];
@@ -192,9 +241,11 @@
       muatSemuaDataHariIni();
     }
 
-    function muatSemuaDataHariIni() {
+    function muatSemuaDataHariIni(isSilent = false) {
       const tabelBody = document.getElementById('tabel-body');
-      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sinkronisasi data hari ini...</td></tr>';
+      if(!isSilent) {
+        tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sinkronisasi data harian...</td></tr>';
+      }
 
       fetch(GAS_URL + "?action=getAbsensiHariIni", {
         method: "POST",
@@ -203,6 +254,7 @@
       .then(res => res.json())
       .then(data => {
         tabelBody.innerHTML = "";
+        updateStatistik(data);
         data.forEach(item => {
           let badgeStatus = "";
           if (item.status === "Hadir") {
@@ -235,6 +287,7 @@
           </tr>`;
           tabelBody.insertAdjacentHTML('beforeend', barisHtml);
         });
+        filterNamaSiswa();
       });
     }
 
