@@ -7,24 +7,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    /* Menyembunyikan elemen non-laporan saat printer aktif */
     @media print {
-      .no-print { 
-        display: none !important; 
-      }
-      body { 
-        background-color: white !important; 
-        padding: 0;
-      }
-      .print-area { 
-        width: 100% !important; 
-        max-width: 100% !important; 
-        box-shadow: none !important; 
-        padding: 0 !important; 
-      }
-      .print-only {
-        display: inline !important;
-      }
+      .no-print { display: none !important; }
+      body { background-color: white !important; padding: 0; }
+      .print-area { width: 100% !important; max-width: 100% !important; box-shadow: none !important; padding: 0 !important; }
+      .print-only { display: inline !important; }
     }
   </style>
 </head>
@@ -36,28 +23,34 @@
 
   <main class="container mx-auto p-4 flex-grow flex flex-col items-center justify-center">
     
-    <div class="no-print w-full max-w-md bg-white p-6 rounded-xl shadow-lg text-center mb-6">
+    <div id="scanner-section" class="no-print w-full max-w-md bg-white p-6 rounded-xl shadow-lg text-center mb-6">
       <h2 class="text-lg font-semibold text-gray-700 mb-3">Silakan Dekatkan Kartu Anda ke Kamera</h2>
-      
       <div id="reader" class="w-full bg-gray-50 rounded-lg overflow-hidden border-2 border-dashed border-gray-300"></div>
-      
       <div id="status-box" class="mt-4 p-3 hidden rounded-lg text-sm font-bold"></div>
-      
       <button onclick="aktifkanKamera()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition shadow">
         Mulai Scan
       </button>
     </div>
 
     <div class="print-area w-full max-w-4xl bg-white p-6 rounded-xl shadow-md mb-6">
-      <div class="flex justify-between items-center mb-6 border-b pb-4">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b pb-4">
         <div>
           <h2 class="text-xl font-bold text-gray-800 tracking-wide">REKAP KEHADIRAN SISWA</h2>
           <p id="info-tanggal" class="text-sm font-semibold text-gray-500 mt-1"></p>
         </div>
         
-        <button onclick="window.print()" class="no-print bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow transition flex items-center gap-2">
-          🖨️ Cetak Rekap Harian
-        </button>
+        <div class="no-print flex flex-wrap items-center gap-2">
+          <input type="date" id="filter-tanggal" class="p-2 border rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500">
+          <button onclick="cariRiwayatTanggal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition">
+            Cari Riwayat
+          </button>
+          <button onclick="kembaliKeHariIni()" id="btn-hari-ini" class="hidden bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition">
+            Hari Ini
+          </button>
+          <button onclick="window.print()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow transition">
+            🖨️ Cetak
+          </button>
+        </div>
       </div>
 
       <div class="overflow-x-auto">
@@ -72,7 +65,7 @@
           </thead>
           <tbody id="tabel-body">
             <tr>
-              <td colspan="4" class="text-center p-4 text-gray-400">Menghubungkan ke database siswa...</td>
+              <td colspan="4" class="text-center p-4 text-gray-400">Menghubungkan ke database...</td>
             </tr>
           </tbody>
         </table>
@@ -86,14 +79,13 @@
   </main>
 
   <script>
-    // URL WEB APP GOOGLE SCRIPT ANDA
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwU0XUPR6aLvwZcQn1uShuacSIZxjGKPED-CNz8EYwfh88P2Z6eoSJN82A22Mto6LI6LA/exec"; 
-
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw08x2s3HKRaIv8W8v1SkI70uthiKuK9b0l-6zSNDlYukizopCSD8WyP0no8uUS0Iz_Iw/exec"; 
     let html5QrcodeScanner;
 
-    // Dipanggil saat pertama kali web dibuka
     window.onload = function() {
-      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const hariIni = new Date();
+      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('filter-tanggal').value = hariIni.toISOString().split('T')[0];
       muatSemuaDataHariIni();
     };
 
@@ -117,11 +109,9 @@
       })
       .then(res => res.json())
       .then(response => {
-        statusBox.classList.remove("bg-yellow-100", "text-yellow-800");
         if(response.success) {
           statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-green-100 text-green-800 block";
           statusBox.innerText = response.message;
-          // Segarkan tabel agar status berubah jadi "Hadir"
           muatSemuaDataHariIni();
         } else {
           statusBox.className = "mt-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-800 block";
@@ -136,13 +126,75 @@
       });
     }
 
-    function onScanFailure(error) {
-      // Diabaikan
+    function onScanFailure(error) {}
+
+    // 1. CARI RIWAYAT TANGGAL LALU
+    function cariRiwayatTanggal() {
+      const tanggalDipilih = document.getElementById('filter-tanggal').value;
+      if (!tanggalDipilih) return alert("Silakan pilih tanggal terlebih dahulu!");
+
+      // Jika mencari tanggal kemarin, sembunyikan kotak kamera scanner agar aman
+      const hariIniString = new Date().toISOString().split('T')[0];
+      if (tanggalDipilih !== hariIniString) {
+        document.getElementById('scanner-section').classList.add('hidden');
+        document.getElementById('btn-hari-ini').classList.remove('hidden');
+        if (html5QrcodeScanner) { html5QrcodeScanner.clear(); }
+      } else {
+        kembaliKeHariIni();
+        return;
+      }
+
+      const tabelBody = document.getElementById('tabel-body');
+      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Mencari arsip riwayat absensi...</td></tr>';
+
+      const opsiTgl = new Date(tanggalDipilih).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('info-tanggal').innerText = "Arsip Rekap: " + opsiTgl;
+
+      fetch(GAS_URL + "?action=getAbsensiByTanggal", {
+        method: "POST",
+        body: JSON.stringify({ tanggal: tanggalDipilih })
+      })
+      .then(res => res.json())
+      .then(data => {
+        tabelBody.innerHTML = "";
+        if (!data || data.length === 0) {
+          tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Tidak ada riwayat data absensi pada tanggal ini.</td></tr>';
+          return;
+        }
+        
+        data.forEach(item => {
+          let badgeStatus = "";
+          if (item.status === "Hadir") badgeStatus = `<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">Hadir</span>`;
+          else if (item.status === "Sakit") badgeStatus = `<span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-extrabold">Sakit</span>`;
+          else if (item.status === "Izin") badgeStatus = `<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-extrabold">Izin</span>`;
+          else if (item.status === "Alpa") badgeStatus = `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-extrabold">Alpa</span>`;
+
+          const barisHtml = `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+            <td class="p-3 text-gray-700 font-semibold">${item.waktu}</td>
+            <td class="p-3 text-gray-600 font-mono">${item.id}</td>
+            <td class="p-3 font-bold text-gray-800">${item.nama}</td>
+            <td class="p-3 text-center">${badgeStatus}</td>
+          </tr>`;
+          tabelBody.insertAdjacentHTML('beforeend', barisHtml);
+        });
+      });
     }
 
-    // MEMUAT SEMUA SISWA & DATA SCAN DARI SCRIPT GOOGLE
+    // 2. TOMBOL KEMBALI KE ABSENSI BERJALAN
+    function kembaliKeHariIni() {
+      const hariIni = new Date();
+      document.getElementById('info-tanggal').innerText = "Hari/Tanggal: " + hariIni.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('filter-tanggal').value = hariIni.toISOString().split('T')[0];
+      
+      document.getElementById('scanner-section').classList.remove('hidden');
+      document.getElementById('btn-hari-ini').classList.add('hidden');
+      
+      muatSemuaDataHariIni();
+    }
+
     function muatSemuaDataHariIni() {
       const tabelBody = document.getElementById('tabel-body');
+      tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Sinkronisasi data hari ini...</td></tr>';
 
       fetch(GAS_URL + "?action=getAbsensiHariIni", {
         method: "POST",
@@ -151,14 +203,8 @@
       .then(res => res.json())
       .then(data => {
         tabelBody.innerHTML = "";
-        if (!data || data.length === 0) {
-          tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">Tidak ada data siswa ditemukan di database.</td></tr>';
-          return;
-        }
-        
         data.forEach(item => {
           let badgeStatus = "";
-          
           if (item.status === "Hadir") {
             badgeStatus = `<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-extrabold">Hadir</span>`;
           } else if (item.status === "Sakit") {
@@ -168,7 +214,6 @@
           } else if (item.status === "Alpa") {
             badgeStatus = `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-extrabold">Alpa</span>`;
           } else {
-            // Tampilan jika siswa belum scan (Dropdown S/I/A)
             badgeStatus = `
               <div class="no-print flex items-center justify-center">
                 <select onchange="gantiStatusManual('${item.id}', this.value)" class="text-xs bg-gray-50 border border-gray-300 rounded p-1 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -190,16 +235,11 @@
           </tr>`;
           tabelBody.insertAdjacentHTML('beforeend', barisHtml);
         });
-      })
-      .catch(err => {
-        tabelBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Gagal menyinkronkan data. Rekoneksi server...</td></tr>';
       });
     }
 
-    // Mengirim perubahan status manual (Sakit/Izin/Alpa)
     function gantiStatusManual(idSiswa, statusPilihan) {
       if (!statusPilihan) return;
-      
       const statusBox = document.getElementById("status-box");
       statusBox.className = "no-print mt-4 p-3 rounded-lg text-sm font-bold bg-yellow-100 text-yellow-800 block";
       statusBox.innerText = "Memperbarui status di Google Sheets...";
@@ -213,10 +253,7 @@
         if (response.success) {
           statusBox.className = "no-print mt-4 p-3 rounded-lg text-sm font-bold bg-green-100 text-green-800 block";
           statusBox.innerText = response.message;
-          muatSemuaDataHariIni(); // Perbarui tabel otomatis
-        } else {
-          statusBox.className = "no-print mt-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-800 block";
-          statusBox.innerText = "Gagal mengubah status.";
+          muatSemuaDataHariIni();
         }
       });
     }
